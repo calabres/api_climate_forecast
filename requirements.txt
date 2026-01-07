@@ -1,0 +1,10 @@
+django>=4.2
+djangorestframework
+django-cors-headers
+xarray
+netCDF4
+pandas
+numpy
+scipy
+cdsapi
+dask

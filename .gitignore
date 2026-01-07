@@ -1,0 +1,29 @@
+# Datos Climáticos (Gigantes)
+data_bsas/
+*.nc
+*.grib
+*.idx
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+media/
+
+# VS Code / IDEs
+.vscode/
+.idea/
+
+# Sistema
+Thumbs.db
+Desktop.ini
