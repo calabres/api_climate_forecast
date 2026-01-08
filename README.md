@@ -19,6 +19,9 @@ Currently, stakeholders struggle to:
 
 **Climate Viewer API** solves this by processing 24 years of hindcast data (1993-2016) to evaluate 8 major climate agencies and recommend the optimal forecast source for every month and coordinate in Buenos Aires.
 
+While these datasets are technically open, they are often difficult to access, process, and interpret for the average user. This application bridges that gap, providing a simple interface to complex scientific data.
+
+
 ## 🎥 Preview
 ![Climate App Walkthrough](docs/assets/climate_app_walkthrough_1767888624339.webp)
 *(Interactive Interface: Select location -> Analyze Skill -> View Forecast)*
@@ -95,7 +98,8 @@ The platform integrates data from **8 major global climate centers**, processed 
 
 3. **Data Setup:**
    Ensure the `data_bsas/` folder is populated with the NetCDF files (ERA5 and Hindcasts). 
-   *(Note: Data is not included in the repo due to size -> 50GB+).*
+   *(Note: Total data is around 100MB in this prototype, but requires specific retrieval from C3S).*
+
 
 4. Run the Server:
    ```bash
@@ -133,6 +137,12 @@ Returns the recommended best model for each lead time and its forecast.
   ...
 ]
 ```
+
+## 📖 Documentation & QA
+- **OpenAPI / Swagger:** Interactive API documentation is available at `/api/docs/`.
+- **CI/CD:** Automated testing is implemented via **GitHub Actions**. Every push runs the test suite to ensure API contract stability.
+- **Testing:** Run tests locally using `python manage.py test`.
+
 
 ---
 **Course Project:** AI Dev Tools Zoomcamp 2025
