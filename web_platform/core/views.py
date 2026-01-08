@@ -2,10 +2,21 @@
 from django.shortcuts import render
 from django.http import JsonResponse
 from .analysis import get_skill_matrix, get_best_models
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 
 def index(request):
     return render(request, 'core/index.html')
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter("lat", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Latitude value", required=True),
+        OpenApiParameter("lon", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Longitude value", required=True),
+        OpenApiParameter("month", OpenApiTypes.STR, OpenApiParameter.QUERY, description="Base month (1-12 or 'auto')", required=False, default="1"),
+    ],
+    responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+    description="Returns the skill matrix (Correlation and Bias) for all models at a specific point."
+)
 def api_skill(request):
     try:
         lat = float(request.GET.get('lat'))
@@ -27,6 +38,15 @@ def api_skill(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter("lat", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Latitude value", required=True),
+        OpenApiParameter("lon", OpenApiTypes.FLOAT, OpenApiParameter.QUERY, description="Longitude value", required=True),
+        OpenApiParameter("month", OpenApiTypes.STR, OpenApiParameter.QUERY, description="Base month (1-12 or 'auto')", required=False, default="1"),
+    ],
+    responses={200: OpenApiTypes.OBJECT},
+    description="Returns the best model recommendation and calibrated forecast for each lead time."
+)
 def api_smart_forecast(request):
     try:
         lat = float(request.GET.get('lat'))
