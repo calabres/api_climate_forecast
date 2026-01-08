@@ -1,6 +1,6 @@
-
 from django.shortcuts import render
 from django.http import JsonResponse
+from rest_framework.decorators import api_view
 from .analysis import get_skill_matrix, get_best_models
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
@@ -17,18 +17,18 @@ def index(request):
     responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
     description="Returns the skill matrix (Correlation and Bias) for all models at a specific point."
 )
+@api_view(['GET'])
 def api_skill(request):
     try:
-        lat = float(request.GET.get('lat'))
-        lon = float(request.GET.get('lon'))
-        raw_month = request.GET.get('month', '1')
+        lat = float(request.query_params.get('lat'))
+        lon = float(request.query_params.get('lon'))
+        raw_month = request.query_params.get('month', '1')
         
         if raw_month == 'auto':
             month = 'auto'
         else:
             month = int(raw_month)
         
-        # Devuelve { 'acc': {...}, 'bias': {...} }
         data = get_skill_matrix(lat, lon, month)
         
         if "error" in data:
@@ -36,7 +36,7 @@ def api_skill(request):
             
         return JsonResponse(data)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': f"Missing or invalid parameters: {str(e)}"}, status=400)
 
 @extend_schema(
     parameters=[
@@ -47,11 +47,12 @@ def api_skill(request):
     responses={200: OpenApiTypes.OBJECT},
     description="Returns the best model recommendation and calibrated forecast for each lead time."
 )
+@api_view(['GET'])
 def api_smart_forecast(request):
     try:
-        lat = float(request.GET.get('lat'))
-        lon = float(request.GET.get('lon'))
-        raw_month = request.GET.get('month', '1')
+        lat = float(request.query_params.get('lat'))
+        lon = float(request.query_params.get('lon'))
+        raw_month = request.query_params.get('month', '1')
         
         if raw_month == 'auto':
             month = 'auto'
@@ -61,4 +62,4 @@ def api_smart_forecast(request):
         data = get_best_models(lat, lon, month)
         return JsonResponse(data, safe=False)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({'error': f"Missing or invalid parameters: {str(e)}"}, status=400)
