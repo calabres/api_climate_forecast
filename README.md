@@ -20,7 +20,7 @@ Currently, stakeholders struggle to:
 **Climate Viewer API** solves this by processing 24 years of hindcast data (1993-2016) to evaluate 8 major climate agencies and recommend the optimal forecast source for every month and coordinate in Buenos Aires.
 
 ## 🎥 Preview
-![Climate App Dashboard](docs/assets/app_preview.png)
+![Climate App Walkthrough](docs/assets/climate_app_walkthrough_1767888624339.webp)
 *(Interactive Interface: Select location -> Analyze Skill -> View Forecast)*
 
 ## 🤖 AI-Assisted Development
