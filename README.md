@@ -9,6 +9,9 @@
 ## 📖 Problem Description
 Seasonal climate forecasting is crucial for agriculture and water management in the **Pampas Region (Argentina)**. However, different global climate models (ECMWF, NCEP, UKMO, etc.) perform differently depending on the specific location and time of year.
 
+**Climate Viewer API** allows users to view forecasts for upcoming months, serving as a key tool for strategic decision-making. It acts as a starting point for future advanced forecasting applications, such as **soil water balance models**, and complements crop simulation models used to analyze different **sowing dates or genetic cultivars**.
+
+
 Currently, stakeholders struggle to:
 1. Identify which global model is trustworthy for their specific farm/location.
 2. Visualize the forecast bias (mm) and skill (correlation) in a simple interface.
@@ -39,6 +42,34 @@ This project was built using an **Agentic AI Workflow** (Antigravity).
 ### Data Source
 - **Copernicus Climate Change Service (C3S):** Seasonal Hindcasts (1993-2016) and ERA5 Reanalysis.
 - **Models Integrated:** ECMWF, NCEP, UKMO, JMA, Météo-France, DWD, CMCC, ECCC.
+
+## 🌍 Integrated Climate Models
+The platform integrates data from **8 major global climate centers**, processed via the Copernicus Climate Change Service (C3S). Each model has unique characteristics:
+
+- **ECMWF SEAS5** (European Centre for Medium-Range Weather Forecasts): One of the most advanced global forecasting systems, using a coupled atmosphere-ocean-sea ice model with high resolution.
+  > *Johnson, S. J., et al. (2019). SEAS5: the new ECMWF seasonal forecast system. Geoscientific Model Development, 12(3), 1087-1117.*
+
+- **NCEP CFSv2** (National Centers for Environmental Prediction - NOAA, USA): A fully coupled model representing the interaction between the Earth's atmosphere, oceans, land, and sea ice.
+  > *Saha, S., et al. (2014). The NCEP Climate Forecast System Version 2. Journal of Climate, 27(6), 2185-2208.*
+
+- **Met Office GloSea6** (UK Met Office): Built on the HadGEM3 climate model, featuring high-resolution ocean and atmospheric components to improve prediction in the mid-latitudes.
+  > *MacLachlan, C., et al. (2015). Global Seasonal forecast system version 5 (GloSea5): a high-resolution seasonal forecast system. Quarterly Journal of the Royal Meteorological Society.*
+
+- **Météo-France System 8**: Based on the CNRM-CM climate model, integrating the ARPEGE-Climat atmosphere model and NEMO ocean model.
+  > *Voldoire, A., et al. (2013). The CNRM-CM5.1 global climate model: description and basic evaluation. Climate Dynamics.*
+
+- **DWD GCFS** (Deutscher Wetterdienst, Germany): Based on the MPI-ESM (Max Planck Institute Earth System Model), known for its robust representation of atmospheric dynamics.
+  > *Baehr, J., et al. (2015). The prediction of surface temperature in the new seasonal prediction system based on the MPI-ESM coupled climate model. Climate Dynamics.*
+
+- **CMCC SPS3.5** (Euro-Mediterranean Center on Climate Change, Italy): A coupled system improving the representation of the stratosphere and land surface processes.
+  > *Sanna, A., et al. (2017). The new CMCC seasonal prediction system. Technical Report.*
+
+- **JMA/MRI-CPS3** (Japan Meteorological Agency): Features advanced physical parameterizations for improved prediction of ENSO and Asian monsoon variability.
+  > *Takaya, Y., et al. (2017). Japan Meteorological Agency/Meteorological Research Institute-Coupled Prediction System version 2 (JMA/MRI-CPS2). Climate Dynamics.*
+
+- **ECCC CanSIPS** (Environment and Climate Change Canada): A multi-model ensemble system combining two climate models (CanCM4 and GEM-NEMO) to improve probabilistic skill.
+  > *Merryfield, W. J., et al. (2013). The Canadian Seasonal to Interannual Prediction System. Part I: Models and Initialization. Monthly Weather Review.*
+
 
 ## 🚀 How to Run
 
