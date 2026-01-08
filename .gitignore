@@ -1,29 +1,24 @@
-# Datos Climáticos (Gigantes)
-data_bsas/
-*.nc
-*.grib
-*.idx
-
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+*.pyc
+*.pyo
+*.pyd
 .Python
 env/
 venv/
-.venv/
+.env
 
-# Django
-*.log
-local_settings.py
-db.sqlite3
-media/
+# Jupyter
+.ipynb_checkpoints
 
-# VS Code / IDEs
-.vscode/
-.idea/
-
-# Sistema
+# OS
+.DS_Store
 Thumbs.db
-Desktop.ini
+
+# Config y Secretos
+.cdsapirc
+.env
+data_bsas/*.grib
+
+# NO ignoramos los .nc para este proyecto académico
+# data_bsas/*.nc

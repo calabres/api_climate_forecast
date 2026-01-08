@@ -1,7 +1,11 @@
 import cdsapi
+import os
 
-URL_CDS = "https://cds.climate.copernicus.eu/api" # Nuevo endpoint post-migración 2024
-KEY_CDS = "1ed376d2-770b-495d-9637-f4825f4d7342" # Asegúrate de que esta sea tu NUEVA clave del sistema renovado
+URL_CDS = os.getenv("CDS_API_URL", "https://cds.climate.copernicus.eu/api")
+KEY_CDS = os.getenv("CDS_API_KEY")
+
+if not KEY_CDS:
+    print("ADVERTENCIA: No se encontró CDS_API_KEY. La descarga puede fallar si no hay .cdsapirc configurado.")
 
 client = cdsapi.Client(url=URL_CDS, key=KEY_CDS)
 

@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      # Montar el código para desarrollo en vivo (opcional, bueno para debug)
+      - .:/app
+      # IMPORTANTE: Montar los datos locales al contenedor
+      # Asegúrate de que tu carpeta local se llame 'data_bsas' y esté en la raíz del proyecto
+      - ./data_bsas:/app/data_bsas
+    environment:
+      - DJANGO_DEBUG=True
+    command: python web_platform/manage.py runserver 0.0.0.0:8080

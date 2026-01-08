@@ -36,7 +36,7 @@
             z-index: 1;
         }
 
-        /* Panel Lateral (Más ancho para el gráfico) */
+        /* Panel Lateral */
         #sidebar {
             position: absolute;
             top: 15px;
@@ -65,22 +65,60 @@
             margin-top: 0;
         }
 
-        /* Controles */
         .control-group {
             margin-bottom: 15px;
         }
 
+        /* Header con Info */
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
         label {
-            display: block;
             font-size: 11px;
             font-weight: 700;
             color: #95A5A6;
-            margin-bottom: 5px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            margin: 0;
         }
 
-        select,
+        .info-icon {
+            margin-left: 6px;
+            width: 14px;
+            height: 14px;
+            background: #BDC3C7;
+            color: white;
+            border-radius: 50%;
+            font-size: 9px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-family: serif;
+            /* Para la 'i' elegante */
+            transition: background 0.2s;
+        }
+
+        .info-icon:hover {
+            background: #3498DB;
+        }
+
+        .info-box {
+            display: none;
+            background: #F8F9F9;
+            border-left: 3px solid #3498DB;
+            padding: 8px;
+            font-size: 11px;
+            color: #555;
+            margin-bottom: 10px;
+            border-radius: 0 4px 4px 0;
+            line-height: 1.4;
+        }
+
         input {
             width: 100%;
             padding: 8px;
@@ -134,7 +172,7 @@
             font-size: 12px;
         }
 
-        /* Tarjetas Smart Forecast */
+        /* Tarjetas */
         .smart-card {
             background: #fff;
             padding: 10px;
@@ -168,8 +206,9 @@
 
         /* Gráfico */
         #chart-container {
-            margin-top: 20px;
-            height: 200px;
+            margin-top: 10px;
+            position: relative;
+            height: 180px;
             width: 100%;
         }
     </style>
@@ -182,51 +221,56 @@
         <p class="subtitle">Análisis Multimodelo & Pronóstico Inteligente</p>
 
         <div class="control-group">
-            <label>Ubicación</label>
+            <div class="section-header"><label>Ubicación</label></div>
             <input type="text" id="location-name" value="Haga clic en el mapa..." readonly>
             <p style="font-size: 10px; color: #999; margin-top: 2px;">Lat: <span id="lat-val">-</span> Lon: <span
                     id="lon-val">-</span></p>
         </div>
 
-        <div class="control-group">
-            <label>Mes de Emisión (Base)</label>
-            <select id="month-selector" onchange="updateMatrixHeaders()">
-                <option value="1">Enero</option>
-                <option value="2">Febrero</option>
-                <option value="3">Marzo</option>
-                <option value="4">Abril</option>
-                <option value="5">Mayo</option>
-                <option value="6">Junio</option>
-                <option value="7">Julio</option>
-                <option value="8">Agosto</option>
-                <option value="9">Septiembre</option>
-                <option value="10">Octubre</option>
-                <option value="11">Noviembre</option>
-                <option value="12">Diciembre</option>
-            </select>
-        </div>
+        <div id="loading-indicator" class="loading">Procesando datos históricos y operativos...</div>
 
-        <div id="loading-indicator" class="loading">Procesando datos históricos...</div>
+        <!-- 1. Pronóstico Chart -->
+        <div id="smart-container"
+            style="border-bottom:1px solid #eee; padding-bottom:15px; margin-bottom:15px; display:none;">
+            <div class="section-header">
+                <label>1. Pronóstico Smart (Operativo)</label>
+                <div class="info-icon" onclick="toggleInfo('info-smart')">i</div>
+            </div>
+            <div id="info-smart" class="info-box">
+                Combina el modelo más preciso para cada mes futuro, ajustando su error histórico (Bias).
+                La <b>línea azul</b> es la predicción calibrada y la <b>franja gris</b> el rango normal esperado.
+            </div>
 
-        <!-- Matriz Skill -->
-        <div id="matrix-acc-container" class="matrix-section" style="display:none;">
-            <label>1. Skill Histórico (Correlación)</label>
-            <div id="matrix-acc-content"></div>
-        </div>
-
-        <!-- Matriz Bias -->
-        <div id="matrix-bias-container" class="matrix-section" style="display:none;">
-            <label>2. Sesgo Sistemático (mm/mes)</label>
-            <div id="matrix-bias-content"></div>
-        </div>
-
-        <!-- Pronóstico Chart -->
-        <div id="smart-container" style="border-top:1px solid #eee; padding-top:15px; display:none;">
-            <label>3. Pronóstico Consolidado (Mejor Modelo)</label>
             <div id="chart-container">
                 <canvas id="forecastChart"></canvas>
             </div>
             <div id="cards-container" style="margin-top:10px;"></div>
+        </div>
+
+        <!-- 2. Matriz Skill -->
+        <div id="matrix-acc-container" class="matrix-section" style="display:none;">
+            <div class="section-header">
+                <label>2. Skill Histórico (Correlación)</label>
+                <div class="info-icon" onclick="toggleInfo('info-skill')">i</div>
+            </div>
+            <div id="info-skill" class="info-box">
+                Mide la "puntería" histórica de cada modelo (1993-2016).
+                Colores <b>rojos intensos</b> (cercanos a 1.0) indican modelos muy confiables para ese mes.
+            </div>
+            <div id="matrix-acc-content"></div>
+        </div>
+
+        <!-- 3. Matriz Bias -->
+        <div id="matrix-bias-container" class="matrix-section" style="display:none;">
+            <div class="section-header">
+                <label>3. Sesgo Sistemático (mm/mes)</label>
+                <div class="info-icon" onclick="toggleInfo('info-bias')">i</div>
+            </div>
+            <div id="info-bias" class="info-box">
+                Indica cuánto suele <b>exagerar (+)</b> o <b>subestimar (-)</b> la lluvia cada modelo.
+                Usamos este valor para calibrar el pronóstico final.
+            </div>
+            <div id="matrix-bias-content"></div>
         </div>
     </div>
 
@@ -235,13 +279,36 @@
     <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // --- UI UTILS ---
+        function toggleInfo(id) {
+            const el = document.getElementById(id);
+            if (el.style.display === 'block') {
+                el.style.display = 'none';
+            } else {
+                el.style.display = 'block';
+            }
+        }
+
         // --- MAPA ---
-        const map = L.map('map', { zoomControl: false }).setView([-36.0, -60.0], 6);
+        const map = L.map('map', { zoomControl: false }).setView([-37.0, -60.0], 6);
         L.tileLayer('http://{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', { maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] }).addTo(map);
 
         let currentMarker = null;
         let lastLat = null, lastLon = null;
         let myChart = null;
+
+        // --- MÁSCARA ---
+        const worldCoords = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
+        const bsasHole = [
+            [-33.0, -63.5],
+            [-33.0, -56.5],
+            [-41.0, -56.5],
+            [-41.0, -63.5]
+        ];
+
+        L.polygon([worldCoords, bsasHole], { color: 'transparent', fillColor: '#000', fillOpacity: 0.3, stroke: false, interactive: false }).addTo(map);
+        L.rectangle(bsasHole, { color: "#F1C40F", weight: 2, fill: false, dashArray: '5, 5' }).addTo(map);
+        map.fitBounds(bsasHole);
 
         map.on('click', function (e) {
             const lat = e.latlng.lat;
@@ -259,17 +326,13 @@
             fetchData(lat, lon);
         });
 
-        function updateMatrixHeaders() {
-            if (lastLat && lastLon) fetchData(lastLat, lastLon);
-        }
-
-        // --- FETCH MAIN ---
         function fetchData(lat, lon) {
             const loader = document.getElementById('loading-indicator');
             const accCont = document.getElementById('matrix-acc-container');
             const biasCont = document.getElementById('matrix-bias-container');
             const smartCont = document.getElementById('smart-container');
-            const baseMonth = document.getElementById('month-selector').value;
+
+            const baseMonth = 'auto';
 
             accCont.style.display = 'none';
             biasCont.style.display = 'none';
@@ -281,10 +344,9 @@
                 .then(r => r.json())
                 .then(data => {
                     if (data.error) throw new Error(data.error);
-
-                    renderMatrix(data.acc, 'matrix-acc-content', baseMonth, 'acc');
-                    renderMatrix(data.bias, 'matrix-bias-content', baseMonth, 'bias');
-
+                    let usedMonth = data.base_month || 1;
+                    renderMatrix(data.acc, 'matrix-acc-content', 'acc', usedMonth);
+                    renderMatrix(data.bias, 'matrix-bias-content', 'bias', usedMonth);
                     accCont.style.display = 'block';
                     biasCont.style.display = 'block';
                 })
@@ -296,7 +358,6 @@
                 .then(data => {
                     loader.style.display = 'none';
                     if (!data || data.length === 0) return;
-
                     smartCont.style.display = 'block';
                     renderChart(data);
                     renderCards(data);
@@ -313,8 +374,7 @@
             return months[idx];
         }
 
-        // --- RENDERIZADO ---
-        function renderMatrix(data, containerId, baseMonth, type) {
+        function renderMatrix(data, containerId, type, baseMonth) {
             let html = '<table class="matrix-table"><thead><tr><th>Modelo</th>';
             for (let l = 1; l <= 6; l++) html += `<th>${getMonthName(baseMonth, l)}</th>`;
             html += '</tr></thead><tbody>';
@@ -322,12 +382,15 @@
             for (const [model, scores] of Object.entries(data)) {
                 html += `<tr><td style="font-weight:600; text-transform:uppercase; font-size:9px">${model}</td>`;
                 scores.forEach(val => {
-                    let displayVal = val === null ? '-' : (type === 'acc' ? val.toFixed(2) : Math.round(val));
-                    let color = val === null ? '#eee' : (type === 'acc' ? getColorAcc(val) : getColorBias(val));
-                    // Texto blanco si es oscuro
+                    let numericVal = val;
+                    if (val && typeof val === 'object') numericVal = (type === 'acc') ? val.r : val.bias;
+
+                    let displayVal = numericVal === null || numericVal === undefined ? '-' : (type === 'acc' ? numericVal.toFixed(2) : Math.round(numericVal));
+                    let color = numericVal === null || numericVal === undefined ? '#eee' : (type === 'acc' ? getColorAcc(numericVal) : getColorBias(numericVal));
+
                     let textColor = '#333';
-                    if (type === 'acc' && Math.abs(val) > 0.5) textColor = '#fff';
-                    if (type === 'bias' && Math.abs(val) > 20) textColor = '#fff';
+                    if (numericVal && type === 'acc' && Math.abs(numericVal) > 0.5) textColor = '#fff';
+                    if (numericVal && type === 'bias' && Math.abs(numericVal) > 20) textColor = '#fff';
 
                     html += `<td><div class="cell-val" style="background-color:${color}; color:${textColor}">${displayVal}</div></td>`;
                 });
@@ -338,35 +401,32 @@
         }
 
         function getColorAcc(v) {
-            if (v < 0) return `rgba(52, 152, 219, ${Math.abs(v)})`; // Azul
-            return `rgba(231, 76, 60, ${v})`; // Rojo
+            if (v < 0) return `rgba(52, 152, 219, ${Math.abs(v)})`;
+            if (v > 1) v = 1;
+            return `rgba(231, 76, 60, ${v})`;
         }
 
         function getColorBias(v) {
-            // Bias: Seco (Negativo) -> Marrón/Naranja, Húmedo (Positivo) -> Verde/Azul
-            // Escala +- 50mm
             let max = 50;
-            let norm = Math.min(Math.abs(v) / max, 1);
-            if (v < 0) return `rgba(230, 126, 34, ${norm})`; // Naranja seco
-            return `rgba(46, 204, 113, ${norm})`; // Verde húmedo
+            return v < 0 ? `rgba(230, 126, 34, ${Math.min(Math.abs(v) / max, 1)})` : `rgba(46, 204, 113, ${Math.min(Math.abs(v) / max, 1)})`;
         }
 
         function renderCards(data) {
             let html = '';
             data.forEach(d => {
-                let badgeColor = d.confianza === 'Alta' ? '#2ECC71' : (d.confianza === 'Media' ? '#F1C40F' : '#E74C3C');
+                let displayVal = d.acumulado_mm !== null ? `${Math.round(d.acumulado_mm)} mm` : '<span style="color:#aaa">-</span>';
+                let anomVal = d.anomalia_mm !== null ? `${d.anomalia_mm > 0 ? '▲' : '▼'} ${Math.round(d.anomalia_mm)} anom` : '-';
+
                 html += `
                 <div class="smart-card">
                     <div>
                         <div class="smart-month">${d.mes}</div>
                         <div class="smart-model">${d.mejor_modelo}</div>
-                        <div class="smart-detail">Bias: ${d.bias > 0 ? '+' : ''}${Math.round(d.bias)} mm</div>
+                        <div class="smart-detail">Bias: ${Math.round(d.bias)} mm</div>
                     </div>
                      <div style="text-align: right;">
-                        <div style="font-weight:bold; font-size:14px; color:#2C3E50">${Math.round(d.acumulado_mm)} mm</div>
-                        <div style="font-size:9px; color:${d.anomalia_mm > 0 ? '#27AE60' : '#E67E22'}">
-                             ${d.anomalia_mm > 0 ? '▲' : '▼'} ${Math.round(d.anomalia_mm)} anom
-                        </div>
+                        <div style="font-weight:bold; font-size:14px; color:#2C3E50">${displayVal}</div>
+                        <div style="font-size:9px; color:${d.anomalia_mm > 0 ? '#27AE60' : '#E67E22'}">${anomVal}</div>
                     </div>
                 </div>`;
             });
@@ -375,10 +435,12 @@
 
         function renderChart(data) {
             const ctx = document.getElementById('forecastChart').getContext('2d');
-
             const labels = data.map(d => d.mes);
             const precip = data.map(d => d.acumulado_mm);
-            const clim = data.map(d => d.acumulado_mm - d.anomalia_mm); // Recalcular Climo base
+            const p20 = data.map(d => d.p20);
+            const p50 = data.map(d => d.p50);
+            const p80 = data.map(d => d.p80);
+            const modelNames = data.map(d => d.mejor_modelo);
 
             if (myChart) myChart.destroy();
 
@@ -387,35 +449,19 @@
                 data: {
                     labels: labels,
                     datasets: [
-                        {
-                            label: 'Pronóstico (mm)',
-                            data: precip,
-                            borderColor: '#3498DB',
-                            backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                            fill: true,
-                            tension: 0.4
-                        },
-                        {
-                            label: 'Normal (Climatología)',
-                            data: clim,
-                            borderColor: '#95A5A6',
-                            borderDash: [5, 5],
-                            pointRadius: 0,
-                            borderWidth: 1,
-                            tension: 0.4
-                        }
+                        { label: 'Pronóstico Smart', data: precip, borderColor: '#3498DB', backgroundColor: '#3498DB', borderWidth: 3, tension: 0.3, fill: false, zIndex: 10, spanGaps: false },
+                        { label: 'Mediana Histórica (P50)', data: p50, borderColor: '#7F8C8D', borderWidth: 1, borderDash: [4, 4], pointRadius: 0, fill: false, tension: 0.3 },
+                        { label: 'Rango Normal (P80)', data: p80, borderColor: 'transparent', backgroundColor: 'rgba(50, 50, 50, 0.15)', pointRadius: 0, fill: 3, tension: 0.3 },
+                        { label: 'Rango Normal (P20)', data: p20, borderColor: 'transparent', pointRadius: 0, fill: false, tension: 0.3 }
                     ]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: true, position: 'bottom', labels: { font: { size: 10 } } }
+                        legend: { display: true, position: 'bottom', labels: { font: { size: 9 } } },
+                        tooltip: { callbacks: { afterLabel: (c) => c.datasetIndex === 0 && c.parsed.y !== null ? `Fuente: ${modelNames[c.dataIndex]}` : '' } }
                     },
-                    scales: {
-                        y: { beginAtZero: true, grid: { display: false } },
-                        x: { grid: { display: false } }
-                    }
+                    scales: { y: { beginAtZero: true, grid: { display: false }, title: { display: true, text: 'mm' } }, x: { grid: { display: false } } }
                 }
             });
         }

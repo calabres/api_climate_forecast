@@ -10,13 +10,18 @@ def api_skill(request):
     try:
         lat = float(request.GET.get('lat'))
         lon = float(request.GET.get('lon'))
-        month = int(request.GET.get('month', 1))
+        raw_month = request.GET.get('month', '1')
+        
+        if raw_month == 'auto':
+            month = 'auto'
+        else:
+            month = int(raw_month)
         
         # Devuelve { 'acc': {...}, 'bias': {...} }
         data = get_skill_matrix(lat, lon, month)
         
         if "error" in data:
-            return JsonResponse(data, status=400) # Enviar error como JSON
+            return JsonResponse(data, status=400) 
             
         return JsonResponse(data)
     except Exception as e:
@@ -26,7 +31,12 @@ def api_smart_forecast(request):
     try:
         lat = float(request.GET.get('lat'))
         lon = float(request.GET.get('lon'))
-        month = int(request.GET.get('month', 1))
+        raw_month = request.GET.get('month', '1')
+        
+        if raw_month == 'auto':
+            month = 'auto'
+        else:
+            month = int(raw_month)
         
         data = get_best_models(lat, lon, month)
         return JsonResponse(data, safe=False)

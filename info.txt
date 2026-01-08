@@ -1,7 +1,0 @@
-Coordinates:
-  * number                   (number) int64 408B 0 1 2 3 4 5 ... 46 47 48 49 50
-  * forecast_reference_time  (forecast_reference_time) datetime64[ns] 8B 2025...
-  * forecastMonth            (forecastMonth) int64 48B 1 2 3 4 5 6
-  * latitude                 (latitude) float64 72B -30.0 -31.0 ... -37.0 -38.0
-  * longitude                (longitude) float64 80B -65.0 -64.0 ... -57.0 -56.0
-FrozenMappingWarningOnValuesAccess({'number': 51, 'forecast_reference_time': 1, 'forecastMonth': 6, 'latitude': 9, 'longitude': 10})

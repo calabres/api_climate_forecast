@@ -5,21 +5,31 @@ import numpy as np
 import os
 import glob
 from scipy.stats import pearsonr
+from calendar import monthrange
+import re
+import traceback
 
 # Ruta de datos
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../data_bsas'))
 
-def get_model_file_path(model_identifier):
-    if model_identifier == 'obs':
-        return os.path.join(DATA_DIR, 'era5_obs_bsas_1993_2016.nc')
-    files = glob.glob(os.path.join(DATA_DIR, f'hc_{model_identifier}_*_bsas.nc'))
-    return files[0] if files else None
+def get_latest_op_date():
+    op_files = glob.glob(os.path.join(DATA_DIR, 'operational_*.nc'))
+    max_date = 0
+    if not op_files: return None, None
+    for f in op_files:
+        match = re.search(r'_(\d{6})\.nc', f)
+        if match:
+             d = int(match.group(1))
+             if d > max_date: max_date = d
+    if max_date == 0: return None, None
+    return str(max_date)[:4], str(max_date)[4:]
 
 def get_skill_matrix(lat, lon, base_month):
-    """
-    Calcula correlación Y bias para un punto específico.
-    Retorna un diccionario con 'acc' (matriz skill) y 'bias' (matriz sesgo).
-    """
+    # Si base_month es None o 'auto', usar el último disponible
+    if not base_month or base_month == 'auto':
+        _, op_m = get_latest_op_date()
+        base_month = int(op_m) if op_m else 1 # Default Enero simulado
+    
     response_acc = {}
     response_bias = {}
     
@@ -62,7 +72,6 @@ def get_skill_matrix(lat, lon, base_month):
                 point_val = ds['tp'].sel(latitude=lat, longitude=lon, method='nearest').load()
                 df_mod = point_val.to_dataframe().reset_index()
                 
-                # Detección Variable de Columnas
                 col_lead = None
                 for c in ['lead', 'forecastMonth', 'leadtime_month', 'step']:
                     if c in df_mod.columns:
@@ -100,34 +109,59 @@ def get_skill_matrix(lat, lon, base_month):
                         scores_bias.append(None)
                         continue
                         
-                    preds_mm, obs_mm = [], []
+                    preds_mm = []
+                    obs_mm = []
+                    
                     for _, row in lead_data.iterrows():
-                        val_pred = row['tp']
-                        start_date = row[col_date]
-                        target_date = start_date + pd.DateOffset(months=lead)
+                        year = row[col_date].year
+                        target_m = (int(base_month) - 1 + lead)%12 + 1
+                        target_y = year if (int(base_month) - 1 + lead) < 12 else year + 1
                         
                         try:
-                            # Match obs
-                            subset_obs = ts_obs[
-                                (ts_obs.index.year == target_date.year) & 
-                                (ts_obs.index.month == target_date.month)
-                            ]
+                            # Buscar en OBS (ERA5)
+                            target_date = pd.Timestamp(f"{target_y}-{target_m:02d}-01")
+                            start_w = target_date - pd.Timedelta(days=5)
+                            end_w = target_date + pd.Timedelta(days=35)
+                            
+                            subset_obs = ts_obs[start_w:end_w]
+                            subset_obs = subset_obs[(subset_obs.index.month == target_m) & (subset_obs.index.year == target_y)]
+                            
                             if not subset_obs.empty:
-                                val_obs = subset_obs.iloc[0]
-                                if not np.isnan(val_pred) and not np.isnan(val_obs):
-                                    # Convertir a MM (multiplicar x1000 si está en metros)
-                                    # Asumimos que los datos crudos vienen en Metros (estándar NetCDF clima)
-                                    preds_mm.append(val_pred * 1000)
-                                    obs_mm.append(val_obs * 1000)
+                                val_obs = float(subset_obs.values[0])
+                                val_pred = float(row['tp'])
+                                
+                                # OBSERVACION (ERA5)
+                                val_obs_mm = val_obs * 1000
+                                _, d_in_m = monthrange(target_y, target_m)
+                                if val_obs_mm < 20: 
+                                    val_obs_mm *= d_in_m
+
+                                # PREDICCION (Modelos)
+                                if abs(val_pred) < 0.01:
+                                    secs_in_month = d_in_m * 24 * 3600
+                                    val_pred_mm = val_pred * secs_in_month * 1000
+                                else:
+                                    val_pred_mm = val_pred * 1000
+                                
+                                preds_mm.append(val_pred_mm)
+                                obs_mm.append(val_obs_mm)
                         except: pass
                     
                     if len(preds_mm) > 10:
-                        # ACC
                         r, _ = pearsonr(preds_mm, obs_mm)
-                        scores_acc.append(float(r) if not np.isnan(r) else 0.0)
-                        
-                        # Bias
                         bias = np.mean(preds_mm) - np.mean(obs_mm)
+                        p20 = np.percentile(obs_mm, 20)
+                        p50 = np.percentile(obs_mm, 50)
+                        p80 = np.percentile(obs_mm, 80)
+                        
+                        scores_acc.append({
+                            "r": float(r) if not np.isnan(r) else 0.0,
+                            "bias": float(bias),
+                            "p20": float(p20),
+                            "p50": float(p50),
+                            "p80": float(p80),
+                            "mean_obs": float(np.mean(obs_mm))
+                        })
                         scores_bias.append(float(bias))
                     else:
                         scores_acc.append(None)
@@ -141,85 +175,112 @@ def get_skill_matrix(lat, lon, base_month):
             response_acc[model_name] = [None]*6
             response_bias[model_name] = [None]*6
 
-    return {"acc": response_acc, "bias": response_bias}
+    return {"acc": response_acc, "bias": response_bias, "base_month": int(base_month)}
 
-def get_best_models(lat, lon, base_month):
-    """
-    Identifica el mejor modelo y calcula la serie para el gráfico.
-    Retorna datos listos para graficar: mm acumulados y anomalía.
-    """
-    # 1. Obtenemos las matrices
-    data = get_skill_matrix(lat, lon, base_month)
+def get_best_models(lat, lon, base_month_ingored):
+    
+    OP_YEAR, OP_MONTH = get_latest_op_date()
+    if not OP_YEAR: return []
+    
+    data = get_skill_matrix(lat, lon, int(OP_MONTH))
     if "error" in data: return []
     
     matrix_acc = data["acc"]
-    matrix_bias = data["bias"]
-    
-    # 2. Elegir Campeones
-    # Necesitamos también la Climatología (promedio obs) para calcular anomalías.
-    # Como get_skill_matrix ya iteró, re-calculamos rápido la climo local aquí?
-    # Es ineficiente. Deberíamos haberla traído.
-    # Para no complicar, asumimos climo = promedio obs general.
-    # Pero get_skill_matrix puede retornar climo también. 
-    # Hagamos un pequeño hack: get_skill_matrix calcula BIAS = Pred - Obs.
-    # Pred = Obs + Bias.
-    # Si tenemos el Bias, sabemos cuánto desvía.
-    # Pero para el gráfico necesitamos "Lo Normal" (Obs Mean).
-    # Vamos a modificar get_skill_matrix para guardar Climatologia en un futuro.
-    # Por ahora, graficaremos solo el BIAS como proxy de anomalía.
     
     champions = []
-    months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+    start_m = int(OP_MONTH)
     
-    # Transponemos mentalmente
+    months_names = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
     model_names = list(matrix_acc.keys())
     
     for lead in range(1, 7):
-        # Mes objetivo
-        idx = (int(base_month) - 1 + lead) % 12
-        month_name = months[idx]
+        target_m_idx = (start_m + lead - 1) % 12 + 1
+        target_y = int(OP_YEAR) + (1 if (start_m + lead > 12) else 0)
         
-        # Buscar mejor skill
-        best_model = "N/A"
-        best_acc = -1.0
-        best_bias = 0.0
-        
+        month_label = f"{months_names[target_m_idx]} {str(target_y)[2:]}"
+        # 1. Ranking de candidatos
+        candidates = []
         for m in model_names:
             acc_list = matrix_acc.get(m, [])
-            bias_list = matrix_bias.get(m, [])
-            
             if len(acc_list) >= lead and acc_list[lead-1] is not None:
-                val = acc_list[lead-1]
-                if val > best_acc:
-                    best_acc = val
-                    best_model = m
-                    best_bias = bias_list[lead-1]
+                stats = acc_list[lead-1]
+                if isinstance(stats, dict):
+                    candidates.append((stats['r'], m, stats))
         
-        # Como no tenemos PRONÓSTICO REAL 2026, simularemos:
-        # Lluvia = Climatología (aprox 100mm) + Bias del modelo? No.
-        # Mostraremos solo los metadatos disponibles.
-        # El usuario pidió: "Gráfico con Y=mm (acums y anomalias)".
+        # Ordenar por skill descendente
+        candidates.sort(key=lambda x: x[0], reverse=True)
         
-        # Valor dummy de lluvia normal para Buenos Aires (aprox)
-        # Ene:120, Feb:110, Mar:130, Abr:100, May:80, Jun:60...
-        climos = [120, 110, 130, 100, 80, 60, 50, 60, 70, 100, 110, 110]
-        climo_val = climos[idx]
-        
-        # Valor Pronosticado (Simulado por ahora: Climo + Bias del modelo)
-        # Esto asume que el modelo pronostica "su promedio".
-        forecast_val = climo_val + best_bias
-        
-        # Anomalía = Forecast - Climo
-        anomalia = best_bias 
-        
+        real_forecast_mm = None
+        best_model_used = "N/A"
+        winner_stats = {"bias": 0, "p20": 0, "p50": 0, "p80": 0, "mean_obs": 0}
+        skill_used = 0.0
+
+        # 2. Buscar el mejor disponible
+        for acc, m_name, stats in candidates:
+             op_file = os.path.join(DATA_DIR, f'operational_{m_name.lower()}_{OP_YEAR}{OP_MONTH}.nc')
+             
+             if os.path.exists(op_file):
+                 try:
+                    with xr.open_dataset(op_file) as ds_op:
+                        if 'number' in ds_op.dims or 'number' in ds_op.coords:
+                            ds_op = ds_op.mean(dim='number', keep_attrs=True)
+
+                        var_op = 'tp' if 'tp' in ds_op else ('tprate' if 'tprate' in ds_op else list(ds_op.data_vars)[0])
+                        val_point = ds_op[var_op].sel(latitude=lat, longitude=lon, method='nearest')
+                        
+                        if 'leadtime_month' in val_point.coords:
+                            val_final = val_point.sel(leadtime_month=lead).values
+                        elif 'forecastMonth' in val_point.coords:
+                            val_final = val_point.sel(forecastMonth=lead).values
+                        elif 'step' in val_point.coords:
+                             val_final = val_point.isel(step=lead-1).values
+                        else:
+                            val_final = float(val_point.values)
+                            
+                        val_real = float(val_final)
+                        
+                        _, d_in_m_op = monthrange(target_y, target_m_idx)
+                        
+                        if abs(val_real) < 0.0001: 
+                             real_forecast_mm = val_real * d_in_m_op * 24 * 3600 * 1000
+                        elif abs(val_real) < 0.5: 
+                             if abs(val_real) < 0.02:
+                                 real_forecast_mm = val_real * 1000 * d_in_m_op 
+                             else:
+                                 real_forecast_mm = val_real * 1000 
+                        else:
+                             real_forecast_mm = val_real
+                             
+                    # Si llegamos aca, tenemos dato!
+                    best_model_used = m_name
+                    winner_stats = stats
+                    skill_used = acc
+                    break 
+                 except Exception as e:
+                     print(f"Error reading {m_name}: {e}")
+                     continue
+
+        best_model = best_model_used
+        best_acc = skill_used
+
+        if real_forecast_mm is None:
+             calibrated_forecast = None
+             anomalia = None
+        else:
+             calibrated_forecast = real_forecast_mm - winner_stats['bias']
+             anomalia = calibrated_forecast - winner_stats.get('p50', winner_stats['mean_obs'])
+
         champions.append({
             "lead": lead,
-            "mes": month_name,
+            "mes": month_label,
             "mejor_modelo": best_model.upper(),
             "skill": best_acc,
-            "bias": best_bias,
-            "acumulado_mm": forecast_val,
-            "anomalia_mm": anomalia,
+            "bias": winner_stats['bias'],
+            "acumulado_mm": round(calibrated_forecast, 1) if calibrated_forecast is not None else None,
+            "anomalia_mm": round(anomalia, 1) if anomalia is not None else None,
+            "p20": round(winner_stats['p20'], 1),
+            "p50": round(winner_stats.get('p50', 0), 1),
+            "p80": round(winner_stats['p80'], 1),
             "confianza": "Alta" if best_acc > 0.5 else ("Media" if best_acc > 0.3 else "Baja")
         })
         
