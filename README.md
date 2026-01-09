@@ -6,6 +6,9 @@
 [![Status](https://img.shields.io/badge/Status-Live%20Demo-success?style=flat-square)](https://climate-viewer-api.onrender.com)
 [![Stack](https://img.shields.io/badge/Stack-Django%20%7C%20Xarray%20%7C%20Leaflet-blue?style=flat-square)]()
 
+> **🚀 LIVE DEMO:** [**Click here to try the App online**](https://climate-viewer-api.onrender.com)  
+> *(Note: It's a free instance, it might take 50s to wake up)*
+
 ## 📖 Problem Description
 Seasonal climate forecasting is crucial for agriculture and water management in the **Pampas Region (Argentina)**. However, different global climate models (ECMWF, NCEP, UKMO, etc.) perform differently depending on the specific location and time of year.
 
