@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: climate-viewer-api
+    env: docker
+    region: oregon
+    plan: free
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PORT
+        value: "8080"

@@ -26,5 +26,5 @@ RUN mkdir -p /app/data_bsas
 # Exponer el puerto
 EXPOSE 8080
 
-# Comando para iniciar
-CMD ["python", "web_platform/manage.py", "runserver", "0.0.0.0:8080"]
+# Comando para iniciar con Gunicorn para producción
+CMD ["gunicorn", "--chdir", "web_platform", "climate_viewer.wsgi:application", "--bind", "0.0.0.0:8080", "--workers", "3", "--timeout", "120"]
