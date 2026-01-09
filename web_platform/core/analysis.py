@@ -8,9 +8,13 @@ from scipy.stats import pearsonr
 from calendar import monthrange
 import re
 import traceback
+import threading
 
 # Ruta de datos
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../data_bsas'))
+
+# Lock global para evitar que dos hilos abran archivos NetCDF al mismo tiempo
+file_lock = threading.Lock()
 
 def get_latest_op_date():
     op_files = glob.glob(os.path.join(DATA_DIR, 'operational_*.nc'))
@@ -25,109 +29,123 @@ def get_latest_op_date():
     return str(max_date)[:4], str(max_date)[4:]
 
 def get_skill_matrix(lat, lon, base_month):
-    # Si base_month es None o 'auto', usar el último disponible
-    if not base_month or base_month == 'auto':
-        _, op_m = get_latest_op_date()
-        base_month = int(op_m) if op_m else 1 # Default Enero simulado
+    print(f"--- Iniciando análisis de Skill para {lat}, {lon} (Mes {base_month}) ---")
     
-    response_acc = {}
-    response_bias = {}
+    with file_lock:
+        # Si base_month es None o 'auto', usar el último disponible
+        if not base_month or base_month == 'auto':
+            _, op_m = get_latest_op_date()
+            base_month = int(op_m) if op_m else 1 # Default Enero simulado
     
-    # 1. Cargar Observaciones (ERA5)
-    ts_obs = None
-    era5_path = os.path.join(DATA_DIR, 'era5_obs_bsas_1993_2016.nc')
-    
-    if not os.path.exists(era5_path):
-        return {"error": "Falta archivo ERA5"}
+        response_acc = {}
+        response_bias = {}
         
-    try:
-        with xr.open_dataset(era5_path) as ds_obs:
-            var_name = 'tp' if 'tp' in ds_obs else list(ds_obs.data_vars)[0]
-            point_obs = ds_obs[var_name].sel(latitude=lat, longitude=lon, method='nearest').load()
-            ts_obs = point_obs.to_dataframe()[point_obs.name]
-    except Exception as e:
-        return {"error": f"Error leyendo ERA5: {e}"}
-
-    # 2. Iterar sobre todos los modelos
-    model_files = glob.glob(os.path.join(DATA_DIR, 'hc_*_bsas.nc'))
-    
-    for f in model_files:
-        name_parts = os.path.basename(f).split('_')
-        if len(name_parts) < 2: continue
-        model_name = name_parts[1]
+        # 1. Cargar Observaciones (ERA5)
+        ts_obs = None
+        era5_path = os.path.join(DATA_DIR, 'era5_obs_bsas_1993_2016.nc')
         
+        if not os.path.exists(era5_path):
+            return {"error": "Falta archivo ERA5"}
+            
         try:
-            with xr.open_dataset(f) as ds:
-                # Normalización On-The-Fly
-                if 'number' in ds.dims: ds = ds.mean(dim='number')
-                
-                for v in ['tprate', 'total_precipitation', 'precip', 'precipitation_flux']:
-                    if v in ds: ds = ds.rename({v: 'tp'})
-                
-                if 'tp' not in ds:
-                     response_acc[model_name] = [None]*6
-                     response_bias[model_name] = [None]*6
-                     continue
-                     
-                point_val = ds['tp'].sel(latitude=lat, longitude=lon, method='nearest').load()
-                df_mod = point_val.to_dataframe().reset_index()
-                
-                col_lead = None
-                for c in ['lead', 'forecastMonth', 'leadtime_month', 'step']:
-                    if c in df_mod.columns:
-                        col_lead = c
-                        break
-                
-                col_date = None
-                for c in ['start_date', 'time', 'forecast_reference_time', 'indexing_time', 'index']:
-                    if c in df_mod.columns and pd.api.types.is_datetime64_any_dtype(df_mod[c]):
-                        col_date = c
-                        break
-                            
-                if not col_lead or not col_date:
-                    response_acc[model_name] = [None]*6
-                    response_bias[model_name] = [None]*6
-                    continue
-
-                # Filtrar mes base
-                df_mod['base_month_idx'] = df_mod[col_date].dt.month
-                df_filtered = df_mod[df_mod['base_month_idx'] == int(base_month)]
-                
-                if df_filtered.empty:
-                    response_acc[model_name] = [None]*6
-                    response_bias[model_name] = [None]*6
-                    continue
-                
-                # Calcular correlaciones y bias
-                scores_acc = []
-                scores_bias = []
-                
-                for lead in range(1, 7):
-                    lead_data = df_filtered[df_filtered[col_lead] == lead]
-                    if lead_data.empty:
-                        scores_acc.append(None)
-                        scores_bias.append(None)
-                        continue
-                        
-                    preds_mm = []
-                    obs_mm = []
+            # Abrimos sin lock=False para evitar que colisionen pedidos simultáneos
+            with xr.open_dataset(era5_path, engine='netcdf4') as ds_obs:
+                var_name = 'tp' if 'tp' in ds_obs else list(ds_obs.data_vars)[0]
+                # Extraer punto exacto y cargarlo en RAM
+                point_obs = ds_obs[var_name].sel(latitude=lat, longitude=lon, method='nearest').load()
+                ts_obs = point_obs.to_dataframe()[point_obs.name]
+                print(f"ERA5 cargado OK")
+        except Exception as e:
+            print(f"Error crítico leyendo ERA5: {e}")
+            return {"error": f"Error leyendo ERA5: {e}"}
+    
+        # 2. Iterar sobre todos los modelos
+        model_files = sorted(glob.glob(os.path.join(DATA_DIR, 'hc_*_bsas.nc')))
+        
+        for f in model_files:
+            name_parts = os.path.basename(f).split('_')
+            if len(name_parts) < 2: continue
+            model_name = name_parts[1]
+            
+            try:
+                with xr.open_dataset(f, engine='netcdf4') as ds:
+                    # Normalización On-The-Fly
+                    if 'number' in ds.dims: ds = ds.mean(dim='number')
                     
-                    for _, row in lead_data.iterrows():
-                        year = row[col_date].year
-                        target_m = (int(base_month) - 1 + lead)%12 + 1
-                        target_y = year if (int(base_month) - 1 + lead) < 12 else year + 1
+                    for v in ['tprate', 'total_precipitation', 'precip', 'precipitation_flux']:
+                        if v in ds: ds = ds.rename({v: 'tp'})
+                    
+                    if 'tp' not in ds:
+                         print(f"Modelo {model_name} no tiene variable 'tp'")
+                         response_acc[model_name] = [None]*6
+                         response_bias[model_name] = [None]*6
+                         continue
+                         
+                    point_val = ds['tp'].sel(latitude=lat, longitude=lon, method='nearest').compute()
+                    df_mod = point_val.to_dataframe().reset_index()
+                    
+                    col_lead = None
+                    for c in ['lead', 'forecastMonth', 'leadtime_month', 'step']:
+                        if c in df_mod.columns:
+                            col_lead = c
+                            break
+                    
+                    col_date = None
+                    for c in ['start_date', 'time', 'forecast_reference_time', 'indexing_time', 'index']:
+                        if c in df_mod.columns and pd.api.types.is_datetime64_any_dtype(df_mod[c]):
+                            col_date = c
+                            break
+                                
+                    if not col_lead or not col_date:
+                        print(f"Modelo {model_name} tiene columnas incompatibles")
+                        response_acc[model_name] = [None]*6
+                        response_bias[model_name] = [None]*6
+                        continue
+    
+                    # Filtrar mes base
+                    df_mod['base_month_idx'] = df_mod[col_date].dt.month
+                    df_filtered = df_mod[df_mod['base_month_idx'] == int(base_month)]
+                    
+                    if df_filtered.empty:
+                        response_acc[model_name] = [None]*6
+                        response_bias[model_name] = [None]*6
+                        continue
+                    
+                    # Calcular correlaciones y bias
+                    scores_acc = []
+                    scores_bias = []
+                    
+                    for lead in range(1, 7):
+                        lead_data = df_filtered[df_filtered[col_lead] == lead]
+                        if lead_data.empty:
+                            scores_acc.append(None)
+                            scores_bias.append(None)
+                            continue
+                            
+                        preds_mm = []
+                        obs_mm = []
                         
-                        try:
-                            # Buscar en OBS (ERA5)
-                            target_date = pd.Timestamp(f"{target_y}-{target_m:02d}-01")
-                            start_w = target_date - pd.Timedelta(days=5)
-                            end_w = target_date + pd.Timedelta(days=35)
+                        for _, row in lead_data.iterrows():
+                            dt_ref = row[col_date]
+                            year = dt_ref.year
+                            target_m = (int(base_month) - 1 + lead)%12 + 1
+                            target_y = year if (int(base_month) - 1 + lead) < 12 else year + 1
                             
-                            subset_obs = ts_obs[start_w:end_w]
-                            subset_obs = subset_obs[(subset_obs.index.month == target_m) & (subset_obs.index.year == target_y)]
-                            
-                            if not subset_obs.empty:
-                                val_obs = float(subset_obs.values[0])
+                            try:
+                                # Buscar en OBS (ERA5) de forma vectorizada/eficiente
+                                target_date = pd.Timestamp(f"{target_y}-{target_m:02d}-01")
+                                
+                                # Intentar acceso directo por índice si es posible (más rápido)
+                                if target_date in ts_obs.index:
+                                    val_obs = ts_obs.loc[target_date]
+                                else:
+                                    start_w = target_date - pd.Timedelta(days=5)
+                                    end_w = target_date + pd.Timedelta(days=35)
+                                    subset_obs = ts_obs[start_w:end_w]
+                                    subset_obs = subset_obs[(subset_obs.index.month == target_m) & (subset_obs.index.year == target_y)]
+                                    if subset_obs.empty: continue
+                                    val_obs = float(subset_obs.values[0])
+                                    
                                 val_pred = float(row['tp'])
                                 
                                 # OBSERVACION (ERA5)
@@ -135,7 +153,7 @@ def get_skill_matrix(lat, lon, base_month):
                                 _, d_in_m = monthrange(target_y, target_m)
                                 if val_obs_mm < 20: 
                                     val_obs_mm *= d_in_m
-
+    
                                 # PREDICCION (Modelos)
                                 if abs(val_pred) < 0.01:
                                     secs_in_month = d_in_m * 24 * 3600
@@ -145,37 +163,37 @@ def get_skill_matrix(lat, lon, base_month):
                                 
                                 preds_mm.append(val_pred_mm)
                                 obs_mm.append(val_obs_mm)
-                        except: pass
+                            except: pass
+                        
+                        if len(preds_mm) > 10:
+                            r, _ = pearsonr(preds_mm, obs_mm)
+                            bias = np.mean(preds_mm) - np.mean(obs_mm)
+                            obs_stats = np.percentile(obs_mm, [20, 50, 80])
+                            
+                            scores_acc.append({
+                                "r": float(r) if not np.isnan(r) else 0.0,
+                                "bias": float(bias),
+                                "p20": float(obs_stats[0]),
+                                "p50": float(obs_stats[1]),
+                                "p80": float(obs_stats[2]),
+                                "mean_obs": float(np.mean(obs_mm))
+                            })
+                            scores_bias.append(float(bias))
+                        else:
+                            scores_acc.append(None)
+                            scores_bias.append(None)
+                            
+                    response_acc[model_name] = scores_acc
+                    response_bias[model_name] = scores_bias
+                    print(f"Modelo {model_name} procesado OK")
                     
-                    if len(preds_mm) > 10:
-                        r, _ = pearsonr(preds_mm, obs_mm)
-                        bias = np.mean(preds_mm) - np.mean(obs_mm)
-                        p20 = np.percentile(obs_mm, 20)
-                        p50 = np.percentile(obs_mm, 50)
-                        p80 = np.percentile(obs_mm, 80)
-                        
-                        scores_acc.append({
-                            "r": float(r) if not np.isnan(r) else 0.0,
-                            "bias": float(bias),
-                            "p20": float(p20),
-                            "p50": float(p50),
-                            "p80": float(p80),
-                            "mean_obs": float(np.mean(obs_mm))
-                        })
-                        scores_bias.append(float(bias))
-                    else:
-                        scores_acc.append(None)
-                        scores_bias.append(None)
-                        
-                response_acc[model_name] = scores_acc
-                response_bias[model_name] = scores_bias
-                
-        except Exception as e:
-            print(f"Error procesando {model_name}: {e}")
-            response_acc[model_name] = [None]*6
-            response_bias[model_name] = [None]*6
-
-    return {"acc": response_acc, "bias": response_bias, "base_month": int(base_month)}
+            except Exception as e:
+                print(f"Error procesando {model_name}: {e}")
+                response_acc[model_name] = [None]*6
+                response_bias[model_name] = [None]*6
+    
+        print(f"--- Análisis finalizado para {lat}, {lon} ---")
+        return {"acc": response_acc, "bias": response_bias, "base_month": int(base_month)}
 
 def get_best_models(lat, lon, base_month_ingored):
     
@@ -221,7 +239,8 @@ def get_best_models(lat, lon, base_month_ingored):
              
              if os.path.exists(op_file):
                  try:
-                    with xr.open_dataset(op_file) as ds_op:
+                    print(f"Buscando pronóstico operativo: {m_name}...")
+                    with xr.open_dataset(op_file, engine='netcdf4') as ds_op:
                         if 'number' in ds_op.dims or 'number' in ds_op.coords:
                             ds_op = ds_op.mean(dim='number', keep_attrs=True)
 
@@ -229,15 +248,15 @@ def get_best_models(lat, lon, base_month_ingored):
                         val_point = ds_op[var_op].sel(latitude=lat, longitude=lon, method='nearest')
                         
                         if 'leadtime_month' in val_point.coords:
-                            val_final = val_point.sel(leadtime_month=lead).values
+                            val_final = val_point.sel(leadtime_month=lead).compute()
                         elif 'forecastMonth' in val_point.coords:
-                            val_final = val_point.sel(forecastMonth=lead).values
+                            val_final = val_point.sel(forecastMonth=lead).compute()
                         elif 'step' in val_point.coords:
-                             val_final = val_point.isel(step=lead-1).values
+                             val_final = val_point.isel(step=lead-1).compute()
                         else:
-                            val_final = float(val_point.values)
+                            val_final = val_point.compute()
                             
-                        val_real = float(val_final)
+                        val_real = float(val_final.values)
                         
                         _, d_in_m_op = monthrange(target_y, target_m_idx)
                         
