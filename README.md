@@ -3,7 +3,7 @@
 **An Interactive Seasonal Forecast Skill Monitor & Smart Recommendation System**
 
 [![AI-Powered](https://img.shields.io/badge/AI-Powered-purple?style=flat-square)](https://github.com/calabres/api_climate_forecast)
-[![Status](https://img.shields.io/badge/Status-Prototype-green?style=flat-square)]()
+[![Status](https://img.shields.io/badge/Status-Live%20Demo-success?style=flat-square)](https://climate-viewer-api.onrender.com)
 [![Stack](https://img.shields.io/badge/Stack-Django%20%7C%20Xarray%20%7C%20Leaflet-blue?style=flat-square)]()
 
 ## 📖 Problem Description
